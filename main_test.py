@@ -37,14 +37,52 @@ model_plate = DetectMultiBackend(os.path.join(YOLOV5_PATH, "my_licenses.pt"), de
 reader = easyocr.Reader(["en"])
 
 # === Utility Functions ===
+dict_char_to_int = {
+    'O': '0',
+    'I': '1',
+    'J': '3',
+    'A': '4',
+    'G': '6',
+    'S': '5'
+}
+
+dict_int_to_char = {
+    '0': 'O',
+    '1': 'I',
+    '3': 'J',
+    '4': 'A',
+    '6': 'G',
+    '5': 'S'
+}
+
+def correct_plate_part(part: str, use_char_map=True) -> str:
+    corrected = ""
+    for c in part:
+        if use_char_map:
+            corrected += dict_char_to_int.get(c, c)
+        else:
+            corrected += dict_int_to_char.get(c, c)
+    return corrected
+
 def validate_indonesian_plate(text: str) -> str:
     text = text.replace("-", "").replace(".", "").replace(",", "").replace(" ", "").upper()
-    pattern = r'^([A-Z]{1,2})(\d{1,4})([A-Z]{1,4})$'
+
+    # Apply char-to-int correction first (to normalize misread letters)
+    text = correct_plate_part(text, use_char_map=True)
+
+    # Try to match pattern after correction
+    pattern = r'^([A-Z0-9]{1,2})(\d{1,4})([A-Z0-9]{1,4})$'
     match = re.match(pattern, text)
     if not match:
         return ""
+
     prefix, digits, suffix = match.groups()
-    suffix = suffix[:3]  # Keep only first 3 characters
+
+    # Apply int-to-char correction to prefix and suffix only
+    prefix = correct_plate_part(prefix, use_char_map=False)
+    suffix = correct_plate_part(suffix, use_char_map=False)
+
+    suffix = suffix[:3]  # Ensure suffix max length = 3
     return f"{prefix} {digits} {suffix}"
 
 def letterbox(img, new_shape=(640, 640), color=(114, 114, 114)):
@@ -322,4 +360,4 @@ def main():
         print("No valid license plates detected; CSV not written.")
 
 if __name__ == "__main__":
-    main()
+    main()  
